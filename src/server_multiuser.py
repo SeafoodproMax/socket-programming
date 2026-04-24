@@ -19,16 +19,47 @@ Typical session::
     ...
 """
 
+import argparse
+import pathlib
 import socket
+import sys
 import threading
 
+import yaml
+
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration — loaded from config/host.yaml (generate via src/init_config.py)
 # ---------------------------------------------------------------------------
-HOST = "192.168.1.10"  # Replace with YOUR machine's LAN IP (not 127.0.0.1)
-PORT = 12345
+_CONFIG_PATH = pathlib.Path(__file__).resolve().parent.parent / "config" / "host.yaml"
+_DEFAULT_PROFILE = "self"
+
 TOTAL_ROUNDS = 3
+
+
+def _load_profile(name: str) -> tuple[str, int]:
+    """Pick `name` out of server_list in config/host.yaml and return (host, port)."""
+    if not _CONFIG_PATH.exists():
+        sys.exit(
+            f"[server] {_CONFIG_PATH} not found. Generate it with:\n"
+            "    python src/init_config.py\n"
+            "or run `make` from the project root."
+        )
+    data = yaml.safe_load(_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    profiles = data.get("server_list") or {}
+    if name not in profiles:
+        available = ", ".join(sorted(profiles)) or "(none)"
+        sys.exit(
+            f"[server] Profile {name!r} not found in {_CONFIG_PATH}.\n"
+            f"         Available: {available}\n"
+            f"         Add one with: python src/init_config.py --name {name}"
+        )
+    entry = profiles[name] or {}
+    host = str(entry.get("host", "")).strip()
+    port = int(entry.get("port", 0))
+    if not host or not port:
+        sys.exit(f"[server] Profile {name!r} is missing 'host' or 'port'.")
+    return host, port
 
 BEATS = {
     "rock": "scissors",
@@ -210,13 +241,28 @@ def handle_client(
         conn.close()
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="TCP Rock-Paper-Scissors server (two-player).",
+    )
+    parser.add_argument(
+        "--profile",
+        default=_DEFAULT_PROFILE,
+        help=f"server_list entry to bind to in config/host.yaml (default: {_DEFAULT_PROFILE!r}).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Accept exactly two clients, then launch a handler thread for each."""
+    args = _parse_args()
+    host, port = _load_profile(args.profile)
+
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_sock.bind((HOST, PORT))
+    server_sock.bind((host, port))
     server_sock.listen(2)
-    print(f"[Server] Listening on {HOST}:{PORT} ...")
+    print(f"[Server] Listening on {host}:{port} (profile={args.profile!r}) ...")
 
     # Shared structures passed to both threads
     barrier = threading.Barrier(2)

@@ -16,16 +16,47 @@ Typical session::
     ...
 """
 
+import argparse
+import pathlib
 import random
 import socket
+import sys
+
+import yaml
 
 
 # ---------------------------------------------------------------------------
-# Configuration
+# Configuration — loaded from config/host.yaml (generate via src/init_config.py)
 # ---------------------------------------------------------------------------
-HOST = "192.168.1.10"  # Replace with YOUR machine's LAN IP (not 127.0.0.1)
-PORT = 12345
+_CONFIG_PATH = pathlib.Path(__file__).resolve().parent.parent / "config" / "host.yaml"
+_DEFAULT_PROFILE = "self"
+
 WIN_TARGET = 3         # Client must win this many times to end the game
+
+
+def _load_profile(name: str) -> tuple[str, int]:
+    """Pick `name` out of server_list in config/host.yaml and return (host, port)."""
+    if not _CONFIG_PATH.exists():
+        sys.exit(
+            f"[server] {_CONFIG_PATH} not found. Generate it with:\n"
+            "    python src/init_config.py\n"
+            "or run `make` from the project root."
+        )
+    data = yaml.safe_load(_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+    profiles = data.get("server_list") or {}
+    if name not in profiles:
+        available = ", ".join(sorted(profiles)) or "(none)"
+        sys.exit(
+            f"[server] Profile {name!r} not found in {_CONFIG_PATH}.\n"
+            f"         Available: {available}\n"
+            f"         Add one with: python src/init_config.py --name {name}"
+        )
+    entry = profiles[name] or {}
+    host = str(entry.get("host", "")).strip()
+    port = int(entry.get("port", 0))
+    if not host or not port:
+        sys.exit(f"[server] Profile {name!r} is missing 'host' or 'port'.")
+    return host, port
 
 # Valid moves and the move that beats each key
 BEATS = {
@@ -109,16 +140,31 @@ def play_game(conn: socket.socket, username: str) -> None:
     print(f"[Server] Game ended. {username} reached {WIN_TARGET} wins.")
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="TCP Rock-Paper-Scissors server (single-client).",
+    )
+    parser.add_argument(
+        "--profile",
+        default=_DEFAULT_PROFILE,
+        help=f"server_list entry to bind to in config/host.yaml (default: {_DEFAULT_PROFILE!r}).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
     """Create the server socket, accept one client, and run the game."""
+    args = _parse_args()
+    host, port = _load_profile(args.profile)
+
     server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     # Allow reuse of the port immediately after the process exits
     server_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-    server_sock.bind((HOST, PORT))
+    server_sock.bind((host, port))
     server_sock.listen(1)
-    print(f"[Server] Listening on {HOST}:{PORT} ...")
+    print(f"[Server] Listening on {host}:{port} (profile={args.profile!r}) ...")
 
     conn, addr = server_sock.accept()
     print(f"[Server] Client connected from {addr}")
