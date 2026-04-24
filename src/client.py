@@ -33,6 +33,38 @@ _DEFAULT_PROFILE = "self"
 VALID_MOVES = ("rock", "paper", "scissors")
 
 
+def _is_final_message(message: str) -> bool:
+    """Return True when the server message indicates game termination."""
+    lowered = message.lower()
+    return lowered.startswith("game over") or "final scoreboard" in lowered
+
+
+def _is_move_prompt(message: str) -> bool:
+    """Return True for multi-player prompts that ask the client to send a move."""
+    return "send your move" in message.lower()
+
+
+def _recv_optional_message(sock: socket.socket, timeout_sec: float = 0.15) -> str | None:
+    """Try receiving one message without blocking forever.
+
+    This lets one client implementation work with both protocols:
+      - single-player server: no explicit pre-move prompt
+      - multi-player server: sends informational messages before each move
+    """
+    previous_timeout = sock.gettimeout()
+    sock.settimeout(timeout_sec)
+    try:
+        data = sock.recv(1024)
+    except socket.timeout:
+        return None
+    finally:
+        sock.settimeout(previous_timeout)
+
+    if not data:
+        return ""
+    return data.decode()
+
+
 def _load_profile(name: str) -> tuple[str, int]:
     """Pick `name` out of server_list in config/host.yaml and return (host, port)."""
     if not _CONFIG_PATH.exists():
@@ -109,15 +141,31 @@ def play_game(sock: socket.socket, student_id: str, auto: bool) -> None:
     print(f"[Server] {welcome}\n")
 
     while True:
+        # Multi-player server may send pre-round info/prompt messages.
+        while True:
+            optional = _recv_optional_message(sock)
+            if optional is None:
+                break
+            if optional == "":
+                return
+
+            print(f"[Server] {optional}\n")
+            if _is_final_message(optional):
+                return
+            if _is_move_prompt(optional):
+                break
+
         move = pick_auto_move() if auto else prompt_move()
         sock.send(move.encode())
 
         response = sock.recv(1024).decode()
+        if not response:
+            return
+
         print(f"[Server] {response}\n")
 
-        # Server sends "Game over" as the final message
-        if response.lower().startswith("game over"):
-            break
+        if _is_final_message(response):
+            return
 
 
 def _parse_args() -> argparse.Namespace:

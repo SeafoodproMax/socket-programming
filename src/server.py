@@ -100,6 +100,7 @@ def play_game(conn: socket.socket, username: str) -> None:
     conn.send(f"Welcome Game {username}".encode())
 
     client_wins = 0
+    server_wins = 0
     round_number = 0
 
     while client_wins < WIN_TARGET:
@@ -121,10 +122,29 @@ def play_game(conn: socket.socket, username: str) -> None:
             result_msg = f"Round {round_number}: Server played {server_move} | Draw"
             server_display = "draw"
         elif outcome == "server_win":
+            server_wins += 1
             result_msg = f"Round {round_number}: Server played {server_move} | Client lose"
             server_display = "server win"
         else:
             client_wins += 1
+            # End immediately on the winning round so client.py can stop
+            # without requiring an extra send/recv cycle.
+            if client_wins == WIN_TARGET:
+                result_msg = (
+                    f"Game over! Round {round_number}: Server played {server_move} | "
+                    f"Client win ({client_wins}/{WIN_TARGET}). GG!"
+                )
+                print(
+                    f"[Server] Round {round_number}: server={server_move}, "
+                    f"client={client_move} -> server lose"
+                )
+                conn.send(result_msg.encode())
+                print(
+                    f"[Server] Game ended. {username} reached {WIN_TARGET} wins. "
+                    f"(server wins: {server_wins})"
+                )
+                return
+
             result_msg = (
                 f"Round {round_number}: Server played {server_move} | "
                 f"Client win ({client_wins}/{WIN_TARGET})"
@@ -135,9 +155,6 @@ def play_game(conn: socket.socket, username: str) -> None:
               f"client={client_move} -> {server_display}")
         conn.send(result_msg.encode())
 
-    farewell = f"Game over! {username} won {WIN_TARGET} rounds. GG!"
-    conn.send(farewell.encode())
-    print(f"[Server] Game ended. {username} reached {WIN_TARGET} wins.")
 
 
 def _parse_args() -> argparse.Namespace:
