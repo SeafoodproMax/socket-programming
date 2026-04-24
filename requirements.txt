@@ -1,0 +1,3 @@
+# This project currently uses only Python standard library modules.
+# Add third-party dependencies here when needed, one package per line.
+
