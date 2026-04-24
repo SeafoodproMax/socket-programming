@@ -1,0 +1,10 @@
+server_list:
+  lab_server:
+    host: 10.7.209.196
+    port: 9999
+  localhost:
+    host: 127.0.0.1
+    port: 8080
+  self:
+    host: 10.9.210.33
+    port: 12345

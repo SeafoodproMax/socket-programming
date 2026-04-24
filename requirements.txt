@@ -1,3 +1,4 @@
-# This project currently uses only Python standard library modules.
-# Add third-party dependencies here when needed, one package per line.
-
+# Client-side only: portable arrow-key selector (client.py prompt_move).
+# Install with: pip install -r requirements.txt
+questionary>=2.0
+pyyaml>=6.0.1
