@@ -9,6 +9,8 @@ CONFIG  := config/host.yaml
 PROFILE ?= self
 # Profile name that `make reconfig` upserts (defaults to the runtime PROFILE).
 NAME    ?= $(PROFILE)
+# Client mode switch: AUTO=1 enables --auto and requires SID=<student-id>.
+AUTO    ?= 0
 
 .DEFAULT_GOAL := all
 .PHONY: all help install config reconfig server multiserver client auto-client clean distclean
@@ -20,7 +22,8 @@ all: install $(CONFIG)
 	@echo "  make server       — run single-player server (uses profile=$(PROFILE))"
 	@echo "  make multiserver  — run two-player server   (uses profile=$(PROFILE))"
 	@echo "  make client       — run client interactively (uses profile=$(PROFILE))"
-	@echo "  make auto-client SID=<student-id>"
+	@echo "  make client AUTO=1 SID=<student-id>"
+	@echo "  make auto-client SID=<student-id>   (compat alias)"
 	@echo ""
 	@echo "Switch profiles per run:    make server PROFILE=lab_server"
 	@echo "Point client at a server:   make reconfig NAME=self HOST=<server-ip> PORT=<port>"
@@ -69,16 +72,16 @@ server: $(CONFIG)
 multiserver: $(CONFIG)
 	$(PYTHON) src/server_multiuser.py --profile $(PROFILE)
 
-## client      : run the client interactively (PROFILE=<name> to override)
+## client      : run client (interactive by default). Auto: AUTO=1 SID=<student-id>
 client: $(CONFIG)
-	$(PYTHON) src/client.py --profile $(PROFILE)
+	@if [ "$(AUTO)" = "1" ] && [ -z "$(SID)" ]; then \
+	    echo "Usage: make client AUTO=1 SID=<student-id> [PROFILE=<name>]"; exit 2; \
+	fi
+	$(PYTHON) src/client.py --profile $(PROFILE) $(if $(filter 1,$(AUTO)),--auto --student-id $(SID),)
 
 ## auto-client : run the client in --auto mode. Required: SID=<student-id>
 auto-client: $(CONFIG)
-	@if [ -z "$(SID)" ]; then \
-	    echo "Usage: make auto-client SID=<student-id> [PROFILE=<name>]"; exit 2; \
-	fi
-	$(PYTHON) src/client.py --profile $(PROFILE) --auto --student-id $(SID)
+	$(MAKE) --no-print-directory client PROFILE=$(PROFILE) AUTO=1 SID="$(SID)"
 
 # --- housekeeping -------------------------------------------------------
 
