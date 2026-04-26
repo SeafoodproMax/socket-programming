@@ -1,12 +1,16 @@
 VENV    := .venv
+
 ifeq ($(OS),Windows_NT)
-    PYTHON  := $(VENV)/Scripts/python
-    PIP     := $(VENV)/Scripts/pip
+    PYTHON_SYS := python
+    PYTHON  := $(VENV)/Scripts/python.exe
+    PIP     := $(VENV)/Scripts/pip.exe
+    STAMP   := $(VENV)/.installed_win
 else
+    PYTHON_SYS := python3
     PYTHON  := $(VENV)/bin/python
     PIP     := $(VENV)/bin/pip
+    STAMP   := $(VENV)/.installed_nix
 endif
-STAMP   := $(VENV)/.installed
 
 .DEFAULT_GOAL := all
 .PHONY: all help install run clean distclean
@@ -22,12 +26,16 @@ help:
 # --- environment ---------------------------------------------------------
 
 $(PYTHON):
-	python3 -m venv $(VENV)
+	$(PYTHON_SYS) -m venv $(VENV)
 
 $(STAMP): requirements.txt | $(PYTHON)
 	$(PIP) install -U pip
 	$(PIP) install -r requirements.txt
+ifeq ($(OS),Windows_NT)
+	@type NUL > $(STAMP)
+else
 	@touch $(STAMP)
+endif
 
 ## install     : create .venv and install requirements.txt
 install: $(STAMP)
@@ -42,9 +50,18 @@ run: install
 
 ## clean       : remove Python bytecode caches
 clean:
+ifeq ($(OS),Windows_NT)
+	-del /s /q *.pyc 2>NUL
+	-for /d /r . %%d in (__pycache__) do @if exist "%%d" rd /s /q "%%d" 2>NUL
+else
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	find . -type f -name '*.pyc' -delete
+endif
 
 ## distclean   : clean + remove .venv
 distclean: clean
+ifeq ($(OS),Windows_NT)
+	-rmdir /s /q $(VENV) 2>NUL
+else
 	rm -rf $(VENV)
+endif
