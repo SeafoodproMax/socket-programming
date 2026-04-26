@@ -1,15 +1,33 @@
 VENV    := .venv
 
+# --- 跨平台指令定義 ---
 ifeq ($(OS),Windows_NT)
+    # Windows (CMD) 邏輯
+    V_BIN      := $(VENV)/Scripts
     PYTHON_SYS := python
-    PYTHON  := $(VENV)/Scripts/python.exe
-    PIP     := $(VENV)/Scripts/pip.exe
-    STAMP   := $(VENV)/.installed_win
+    PYTHON     := $(V_BIN)/python.exe
+    PIP        := $(V_BIN)/pip.exe
+    STAMP      := $(VENV)/.installed_win
+    # 指令適配
+    MKDIR      := mkdir
+    RM         := del /q /f
+    RMDIR      := rmdir /s /q
+    TOUCH      := type NUL >
+    # Windows 的指令路徑需要反斜線才穩
+    FIX_PATH    = $(subst /,\,$1)
 else
+    # Mac / Linux (Bash) 邏輯
+    V_BIN      := $(VENV)/bin
     PYTHON_SYS := python3
-    PYTHON  := $(VENV)/bin/python
-    PIP     := $(VENV)/bin/pip
-    STAMP   := $(VENV)/.installed_nix
+    PYTHON     := $(V_BIN)/python
+    PIP        := $(V_BIN)/pip
+    STAMP      := $(VENV)/.installed_nix
+    # 指令適配
+    MKDIR      := mkdir -p
+    RM         := rm -f
+    RMDIR      := rm -rf
+    TOUCH      := touch
+    FIX_PATH    = $1
 endif
 
 .DEFAULT_GOAL := all
@@ -25,17 +43,15 @@ help:
 
 # --- environment ---------------------------------------------------------
 
+# 用一個虛擬 target 確保 venv 存在
 $(PYTHON):
 	$(PYTHON_SYS) -m venv $(VENV)
 
+# 安裝依賴並建立 Stamp
 $(STAMP): requirements.txt | $(PYTHON)
 	$(PIP) install -U pip
 	$(PIP) install -r requirements.txt
-ifeq ($(OS),Windows_NT)
-	@type NUL > $(STAMP)
-else
-	@touch $(STAMP)
-endif
+	@$(TOUCH) $(call FIX_PATH,$(STAMP))
 
 ## install     : create .venv and install requirements.txt
 install: $(STAMP)
@@ -60,8 +76,4 @@ endif
 
 ## distclean   : clean + remove .venv
 distclean: clean
-ifeq ($(OS),Windows_NT)
-	-rmdir /s /q $(VENV) 2>NUL
-else
-	rm -rf $(VENV)
-endif
+	-$(RMDIR) $(call FIX_PATH,$(VENV))
