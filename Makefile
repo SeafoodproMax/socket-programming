@@ -1,6 +1,11 @@
 VENV    := .venv
-PYTHON  := $(VENV)/bin/python
-PIP     := $(VENV)/bin/pip
+ifeq ($(OS),Windows_NT)
+    PYTHON  := $(VENV)/Scripts/python
+    PIP     := $(VENV)/Scripts/pip
+else
+    PYTHON  := $(VENV)/bin/python
+    PIP     := $(VENV)/bin/pip
+endif
 STAMP   := $(VENV)/.installed
 
 .DEFAULT_GOAL := all
