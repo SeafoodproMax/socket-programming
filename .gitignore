@@ -160,3 +160,9 @@ cython_debug/
 
 # References
 references/
+
+# Local Configurations
+config/
+
+# Claude
+.claude/

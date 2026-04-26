@@ -2,31 +2,13 @@ VENV    := .venv
 PYTHON  := $(VENV)/bin/python
 PIP     := $(VENV)/bin/pip
 STAMP   := $(VENV)/.installed
-CONFIG  := config/host.yaml
-
-# Which server_list profile to use at runtime. Override on the command line:
-#   make server PROFILE=lab_server
-PROFILE ?= self
-# Profile name that `make reconfig` upserts (defaults to the runtime PROFILE).
-NAME    ?= $(PROFILE)
-# Client mode switch: AUTO=1 enables --auto and requires SID=<student-id>.
-AUTO    ?= 0
 
 .DEFAULT_GOAL := all
-.PHONY: all help install config reconfig server multiserver client auto-client clean distclean
+.PHONY: all help install run clean distclean
 
-## all         : install deps, upsert 'self' profile into $(CONFIG) (if missing), show next steps
-all: install $(CONFIG)
-	@echo ""
-	@echo "Ready. Pick one:"
-	@echo "  make server       — run single-player server (uses profile=$(PROFILE))"
-	@echo "  make multiserver  — run two-player server   (uses profile=$(PROFILE))"
-	@echo "  make client       — run client interactively (uses profile=$(PROFILE))"
-	@echo "  make client AUTO=1 SID=<student-id>"
-	@echo "  make auto-client SID=<student-id>   (compat alias)"
-	@echo ""
-	@echo "Switch profiles per run:    make server PROFILE=lab_server"
-	@echo "Point client at a server:   make reconfig NAME=self HOST=<server-ip> PORT=<port>"
+## all         : install deps and start the zero-config launcher
+all: install
+	@$(MAKE) --no-print-directory run
 
 ## help        : print this summary
 help:
@@ -45,43 +27,11 @@ $(STAMP): requirements.txt | $(PYTHON)
 ## install     : create .venv and install requirements.txt
 install: $(STAMP)
 
-# --- config --------------------------------------------------------------
-
-# Create $(CONFIG) only when missing — preserves a user-curated file.
-# Writes a 'self' entry with this machine's auto-detected LAN IP.
-$(CONFIG): | $(STAMP)
-	$(PYTHON) src/init_config.py --name self
-
-## config      : ensure $(CONFIG) exists (creates a 'self' profile if missing)
-config: $(CONFIG)
-
-## reconfig    : upsert a profile into $(CONFIG). Vars: NAME=<name> HOST=<ip> PORT=<port>
-reconfig: $(STAMP)
-	$(PYTHON) src/init_config.py \
-	    --name $(NAME) \
-	    $(if $(HOST),--host $(HOST)) \
-	    $(if $(PORT),--port $(PORT))
-
 # --- run ----------------------------------------------------------------
 
-## server      : run the single-player server (PROFILE=<name> to override)
-server: $(CONFIG)
-	$(PYTHON) src/server.py --profile $(PROFILE)
-
-## multiserver : run the two-player server (PROFILE=<name> to override)
-multiserver: $(CONFIG)
-	$(PYTHON) src/server_multiuser.py --profile $(PROFILE)
-
-## client      : run client (interactive by default). Auto: AUTO=1 SID=<student-id>
-client: $(CONFIG)
-	@if [ "$(AUTO)" = "1" ] && [ -z "$(SID)" ]; then \
-	    echo "Usage: make client AUTO=1 SID=<student-id> [PROFILE=<name>]"; exit 2; \
-	fi
-	$(PYTHON) src/client.py --profile $(PROFILE) $(if $(filter 1,$(AUTO)),--auto --student-id $(SID),)
-
-## auto-client : run the client in --auto mode. Required: SID=<student-id>
-auto-client: $(CONFIG)
-	$(MAKE) --no-print-directory client PROFILE=$(PROFILE) AUTO=1 SID="$(SID)"
+## run         : start the interactive TUI launcher
+run: install
+	$(PYTHON) src/launcher.py
 
 # --- housekeeping -------------------------------------------------------
 
@@ -90,6 +40,6 @@ clean:
 	find . -type d -name __pycache__ -prune -exec rm -rf {} +
 	find . -type f -name '*.pyc' -delete
 
-## distclean   : clean + remove .venv ($(CONFIG) is user-curated, never auto-deleted)
+## distclean   : clean + remove .venv
 distclean: clean
 	rm -rf $(VENV)
