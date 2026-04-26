@@ -1,28 +1,28 @@
 VENV    := .venv
 
-# --- 跨平台指令定義 ---
+# 強制指定 Shell，避免 Windows 抓到 git bash 的 sh.exe
 ifeq ($(OS),Windows_NT)
-    # Windows (CMD) 邏輯
+    SHELL := cmd.exe
     V_BIN      := $(VENV)/Scripts
     PYTHON_SYS := python
     PYTHON     := $(V_BIN)/python.exe
     PIP        := $(V_BIN)/pip.exe
-    STAMP      := $(VENV)/.installed_win
+    STAMP      := .venv/.installed_win
     # 指令適配
     MKDIR      := mkdir
     RM         := del /q /f
     RMDIR      := rmdir /s /q
-    TOUCH      := type NUL >
-    # Windows 的指令路徑需要反斜線才穩
+    # Windows CMD 建立空檔案的寫法
+    TOUCH      := copy /y NUL >
     FIX_PATH    = $(subst /,\,$1)
 else
-    # Mac / Linux (Bash) 邏輯
+    # Mac / Linux 邏輯 (保持不變)
+    SHELL      := /bin/sh
     V_BIN      := $(VENV)/bin
     PYTHON_SYS := python3
     PYTHON     := $(V_BIN)/python
     PIP        := $(V_BIN)/pip
-    STAMP      := $(VENV)/.installed_nix
-    # 指令適配
+    STAMP      := .venv/.installed_nix
     MKDIR      := mkdir -p
     RM         := rm -f
     RMDIR      := rm -rf
